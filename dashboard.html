@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大盘急跌反弹策略 · 驾驶舱</title>
+<style>
+:root {
+  --bg: #0f172a; --card: #1e293b; --border: #334155;
+  --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+  --green: #4ade80; --red: #f87171; --orange: #fb923c;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+
+/* Layout */
+.sidebar { position: fixed; top: 0; left: 0; width: 240px; height: 100vh; background: #0c1527; border-right: 1px solid var(--border); padding: 24px 0; z-index: 100; }
+.sidebar .logo { padding: 0 20px 24px; font-size: 18px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.sidebar .logo span { font-size: 12px; color: var(--muted); display: block; font-weight: 400; }
+.sidebar nav a { display: block; padding: 10px 20px; color: var(--muted); text-decoration: none; font-size: 14px; transition: all 0.2s; border-left: 3px solid transparent; }
+.sidebar nav a:hover, .sidebar nav a.active { color: var(--text); background: rgba(56,189,248,0.08); border-left-color: var(--accent); }
+.main { margin-left: 240px; padding: 32px; max-width: 1200px; }
+
+/* Cards */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-bottom: 24px; }
+.card h2 { font-size: 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.card h3 { font-size: 14px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+/* Grid */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+/* Metric Box */
+.metric { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+.metric .value { font-size: 28px; font-weight: 700; }
+.metric .label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.metric .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.metric.green .value { color: var(--green); }
+.metric.red .value { color: var(--red); }
+.metric.blue .value { color: var(--accent); }
+.metric.orange .value { color: var(--orange); }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 10px 12px; background: rgba(56,189,248,0.1); color: var(--accent); font-weight: 600; border-bottom: 1px solid var(--border); }
+td { padding: 8px 12px; border-bottom: 1px solid rgba(51,65,85,0.5); }
+tr:hover td { background: rgba(56,189,248,0.03); }
+.up { color: var(--green); font-weight: 600; }
+.down { color: var(--red); font-weight: 600; }
+
+/* Status */
+.status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.status-badge.active { background: rgba(74,222,128,0.15); color: var(--green); }
+.status-badge.wait { background: rgba(251,146,60,0.15); color: var(--orange); }
+.status-badge.off { background: rgba(148,163,184,0.15); color: var(--muted); }
+
+/* Checklist */
+.checklist { list-style: none; }
+.checklist li { padding: 8px 0; border-bottom: 1px solid rgba(51,65,85,0.3); display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.checklist li .icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+.checklist li .icon.pass { background: rgba(74,222,128,0.15); color: var(--green); }
+.checklist li .icon.fail { background: rgba(248,113,113,0.15); color: var(--red); }
+.checklist li .icon.info { background: rgba(56,189,248,0.15); color: var(--accent); }
+
+/* Tag */
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.tag.buy { background: rgba(74,222,128,0.15); color: var(--green); }
+.tag.sell { background: rgba(248,113,113,0.15); color: var(--red); }
+.tag.warn { background: rgba(251,146,60,0.15); color: var(--orange); }
+
+/* Signal Flash */
+.signal-flash { background: linear-gradient(135deg, rgba(248,113,113,0.15), rgba(251,146,60,0.1)); border: 1px solid rgba(248,113,113,0.3); border-radius: 10px; padding: 20px 24px; margin-bottom: 24px; }
+.signal-flash h3 { color: var(--red); margin-bottom: 4px; }
+.signal-flash .detail { font-size: 14px; color: var(--muted); }
+
+/* Footer */
+.footer { text-align: center; padding: 40px 0; color: var(--muted); font-size: 12px; }
+.footer a { color: var(--accent); text-decoration: none; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding: 16px; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== Sidebar ==================== -->
+<aside class="sidebar">
+  <div class="logo">ETF-GO<span>大盘急跌反弹驾驶舱</span></div>
+  <nav>
+    <a href="#overview" class="active">概览</a>
+    <a href="#exec">执行清单</a>
+    <a href="#performance">历史表现</a>
+    <a href="#aprmay">4-5月复盘</a>
+    <a href="#strategy">策略说明</a>
+    <a href="../strategy_spec.md">📄 完整策略文档</a>
+    <a href="../trade_details.csv">📊 历史交易明细 (CSV)</a>
+    <a href="../回测报告.html">📋 HTML回测报告</a>
+  </nav>
+</aside>
+
+<!-- ==================== Main ==================== -->
+<main class="main">
+
+<!-- Header -->
+<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:24px">
+  <div>
+    <h1 style="font-size:24px;margin-bottom:4px">大盘急跌-非过热板块超跌反弹</h1>
+    <p style="color:var(--muted);font-size:14px">CSI 300 Crash → Cold Sector ETF Rebound | T+8 持有</p>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:12px;color:var(--muted)">最后更新</div>
+    <div style="font-weight:600">2026-06-01</div>
+    <div class="status-badge wait" style="margin-top:4px">● 等待信号</div>
+  </div>
+</div>
+
+<!-- ==================== Section: Overview ==================== -->
+<section id="overview">
+<div class="grid-4" style="margin-bottom:24px">
+  <div class="metric blue">
+    <div class="value">T+8</div>
+    <div class="label">最优持有期</div>
+    <div class="sub">回测验证的黄金窗口</div>
+  </div>
+  <div class="metric green">
+    <div class="value">66.9%</div>
+    <div class="label">胜率 (优化版)</div>
+    <div class="sub">22次信号, 136笔交易</div>
+  </div>
+  <div class="metric green">
+    <div class="value">+2.12%</div>
+    <div class="label">平均单笔收益</div>
+    <div class="sub">T+8 持有期</div>
+  </div>
+  <div class="metric green">
+    <div class="value">+288%</div>
+    <div class="label">累计收益 (17个月)</div>
+    <div class="sub">2025-01 ~ 2026-05</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- Signal Status -->
+  <div class="card">
+    <h2>📡 当前信号状态</h2>
+    <table>
+      <tr><td style="color:var(--muted)">上一个交易日</td><td><strong>2026-05-30</strong> (周五)</td></tr>
+      <tr><td style="color:var(--muted)">沪深300 涨跌</td><td><span class="down">-0.45%</span></td></tr>
+      <tr><td style="color:var(--muted)">急跌触发?</td><td><span class="status-badge off">未触发 (距阈值差 0.25%)</span></td></tr>
+      <tr><td style="color:var(--muted)">大盘趋势</td><td>强势 (CSI300 4892 > MA60 4705)</td></tr>
+      <tr><td style="color:var(--muted)">建议</td><td>等待下一个急跌日</td></tr>
+    </table>
+  </div>
+
+  <!-- Quick Rules -->
+  <div class="card">
+    <h2>⚡ 策略三板斧</h2>
+    <ul class="checklist">
+      <li><span class="icon pass">1</span> 沪深300 单日 ≤ -0.7% → 急跌触发</li>
+      <li><span class="icon pass">2</span> 买过去10天涨幅垫底的50% ETF</li>
+      <li><span class="icon pass">3</span> 且今日ETF必须跟跌 ≤ -0.3%</li>
+      <li><span class="icon info">+</span> CSI300 < MA60 才操作 (趋势过滤)</li>
+      <li><span class="icon info">→</span> 等权买入，T+8 收盘卖出</li>
+    </ul>
+  </div>
+</div>
+</section>
+
+<!-- ==================== Section: Execution Checklist ==================== -->
+<section id="exec" style="margin-top:32px">
+<div class="card">
+  <h2>📋 执行清单 (每个交易日)</h2>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px">
+    <div style="background:rgba(56,189,248,0.05);padding:16px;border-radius:8px;border:1px solid rgba(56,189,248,0.15)">
+      <h3 style="margin-bottom:8px">⏰ 14:50</h3>
+      <p style="font-size:13px;color:var(--muted)">运行 <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:3px">python signal_today.py</code></p>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">新浪实时行情检查是否触发</p>
+    </div>
+    <div style="background:rgba(74,222,128,0.05);padding:16px;border-radius:8px;border:1px solid rgba(74,222,128,0.15)">
+      <h3 style="margin-bottom:8px">✅ 14:55 确认</h3>
+      <p style="font-size:13px;color:var(--muted)">再跑一次确认信号没有消失</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">大盘可能尾盘拉回导致信号消失</p>
+    </div>
+    <div style="background:rgba(251,146,60,0.05);padding:16px;border-radius:8px;border:1px solid rgba(251,146,60,0.15)">
+      <h3 style="margin-bottom:8px">💰 15:00 执行</h3>
+      <p style="font-size:13px;color:var(--muted)">尾盘竞价买入脚本输出的ETF</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">等权分配, 如7只各14.3%</p>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>决策步骤</th><th>条件</th><th>不满足时</th></tr></thead>
+    <tr><td><strong>1. 急跌?</strong></td><td>CSI300 盘中 ≤ -0.7%</td><td>今日不操作</td></tr>
+    <tr><td><strong>2. 趋势?</strong></td><td>CSI300 < MA60 (弱势/震荡)</td><td><span class="tag warn">强势市警告</span> 减半或跳过</td></tr>
+    <tr><td><strong>3. 选ETF</strong></td><td>过去10日涨幅后50%, 且今日 ≤ -0.3%</td><td>无符合条件的跳过</td></tr>
+    <tr><td><strong>4. 买入</strong></td><td>等权, 尾盘竞价</td><td>—</td></tr>
+    <tr><td><strong>5. 卖出</strong></td><td>T+8 收盘 (约11个日历日后)</td><td>不止损, 不止盈, 纯持有</td></tr>
+  </table>
+</div>
+</section>
+
+<!-- ==================== Section: Performance ==================== -->
+<section id="performance" style="margin-top:32px">
+<div class="card">
+  <h2>📈 历史表现</h2>
+  <div class="grid-2" style="margin-bottom:16px">
+    <div>
+      <h3>优化版 (MA60过滤) | 2025-01 ~ 2026-05</h3>
+      <table>
+        <thead><tr><th>持有</th><th>交易</th><th>胜率</th><th>平均</th><th>累计</th></tr></thead>
+        <tr><td>T+2</td><td>136</td><td>61.8%</td><td class="up">+0.53%</td><td class="up">+72.5%</td></tr>
+        <tr><td>T+5</td><td>136</td><td>64.7%</td><td class="up">+1.59%</td><td class="up">+215.8%</td></tr>
+        <tr style="background:rgba(74,222,128,0.08)"><td><strong>T+8</strong></td><td><strong>136</strong></td><td><strong>66.9%</strong></td><td class="up"><strong>+2.12%</strong></td><td class="up"><strong>+287.8%</strong></td></tr>
+        <tr><td>T+10</td><td>136</td><td>66.2%</td><td class="up">+1.74%</td><td class="up">+236.6%</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>原版 (无过滤) | 2025-01 ~ 2026-05</h3>
+      <table>
+        <thead><tr><th>持有</th><th>交易</th><th>胜率</th><th>平均</th><th>累计</th></tr></thead>
+        <tr><td>T+2</td><td>282</td><td>63.1%</td><td class="up">+0.71%</td><td class="up">+200.1%</td></tr>
+        <tr><td>T+5</td><td>277</td><td>57.4%</td><td class="up">+1.28%</td><td class="up">+355.1%</td></tr>
+        <tr><td>T+8</td><td>270</td><td>62.2%</td><td class="up">+2.10%</td><td class="up">+565.7%</td></tr>
+        <tr style="background:rgba(74,222,128,0.08)"><td><strong>T+10</strong></td><td><strong>270</strong></td><td><strong>64.8%</strong></td><td class="up"><strong>+2.04%</strong></td><td class="up"><strong>+550.2%</strong></td></tr>
+      </table>
+    </div>
+  </div>
+  <p style="font-size:12px;color:var(--muted)">优化版加了 MA60 趋势过滤, 虽然累计收益从 +566% 降到 +288%, 但胜率提升 (62.2%→66.9%), 避开了强势市中的假信号。</p>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>🏆 T+8 最佳交易 Top 5</h2>
+    <table>
+      <thead><tr><th>日期</th><th>ETF</th><th>收益</th></tr></thead>
+      <tr><td>2025-10-17</td><td>通信ETF</td><td class="up">+21.47%</td></tr>
+      <tr><td>2026-04-02</td><td>人工智能ETF</td><td class="up">+19.34%</td></tr>
+      <tr><td>2026-04-02</td><td>AIETF</td><td class="up">+19.34%</td></tr>
+      <tr><td>2025-04-07</td><td>通信ETF</td><td class="up">+16.22%</td></tr>
+      <tr><td>2025-10-14</td><td>通信ETF</td><td class="up">+15.92%</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h2>⚠️ T+8 最差交易 Top 5</h2>
+    <table>
+      <thead><tr><th>日期</th><th>ETF</th><th>损失</th></tr></thead>
+      <tr><td>2025-03-21</td><td>通信ETF</td><td class="down">-18.00%</td></tr>
+      <tr><td>2026-03-17</td><td>芯片ETF</td><td class="down">-9.06%</td></tr>
+      <tr><td>2026-03-19</td><td>芯片ETF</td><td class="down">-8.74%</td></tr>
+      <tr><td>2025-03-31</td><td>芯片ETF</td><td class="down">-8.24%</td></tr>
+      <tr><td>2025-03-21</td><td>5GETF</td><td class="down">-7.48%</td></tr>
+    </table>
+  </div>
+</div>
+</section>
+
+<!-- ==================== Section: April-May Deep Dive ==================== -->
+<section id="aprmay" style="margin-top:32px">
+<div class="card">
+  <h2>🔍 2026年4-5月 深度复盘</h2>
+
+  <div class="grid-2" style="margin-bottom:20px">
+    <!-- April -->
+    <div style="background:rgba(74,222,128,0.05);padding:20px;border-radius:8px;border:1px solid rgba(74,222,128,0.15)">
+      <h3 style="color:var(--green)">✅ 4月 — 全部大赚</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">震荡市急跌 = 完美的买入机会</p>
+      <table>
+        <thead><tr><th>日期</th><th>CSI300</th><th>趋势</th><th>T+8胜率</th><th>T+8平均</th></tr></thead>
+        <tr><td>04-02</td><td>-1.04%</td><td>震荡</td><td class="up">100% (7/7)</td><td class="up">+10.08%</td></tr>
+        <tr><td>04-03</td><td>-0.85%</td><td>震荡</td><td class="up">100% (6/6)</td><td class="up">+8.62%</td></tr>
+      </table>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">在MA60下方急跌 → 恐慌出清 → 强力反弹。13只ETF全部盈利。</p>
+    </div>
+
+    <!-- May -->
+    <div style="background:rgba(248,113,113,0.05);padding:20px;border-radius:8px;border:1px solid rgba(248,113,113,0.15)">
+      <h3 style="color:var(--red)">❌ 5月 — 全部避开</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">强势市急跌 = 趋势反转前兆 (被MA60过滤)</p>
+      <table>
+        <thead><tr><th>日期</th><th>CSI300</th><th>趋势</th><th>T+8胜率</th><th>结果</th></tr></thead>
+        <tr><td>05-14</td><td>-1.68%</td><td><span class="tag warn">强势</span></td><td class="down">14%</td><td>被过滤</td></tr>
+        <tr><td>05-15</td><td>-1.12%</td><td><span class="tag warn">强势</span></td><td class="down">25%</td><td>被过滤</td></tr>
+        <tr><td>05-21</td><td>-1.39%</td><td><span class="tag warn">强势</span></td><td>未到期</td><td>被过滤</td></tr>
+        <tr><td>05-27</td><td>-0.80%</td><td><span class="tag warn">强势</span></td><td>未到期</td><td>被过滤</td></tr>
+      </table>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">大盘从4月低点反弹10%后急跌 → 不是恐慌是趋势逆转 → MA60过滤全部拦下。</p>
+    </div>
+  </div>
+
+  <div style="background:rgba(56,189,248,0.05);padding:16px;border-radius:8px;border:1px solid rgba(56,189,248,0.15)">
+    <h3 style="color:var(--accent);margin-bottom:8px">💡 核心教训</h3>
+    <p style="font-size:14px">
+      同一套策略, 4月和5月表现天差地别, <strong>唯一的区别是大盘相对MA60的位置</strong>。
+      MA60趋势过滤是避免亏损的关键——在牛市中回调时抄底是陷阱, 在熊市/震荡中恐慌出清才是机会。
+    </p>
+  </div>
+</div>
+</section>
+
+<!-- ==================== Section: Strategy ==================== -->
+<section id="strategy" style="margin-top:32px">
+<div class="card">
+  <h2>📖 策略完整说明</h2>
+
+  <h3>为什么这个策略能赚钱？</h3>
+  <p style="margin-bottom:16px;font-size:14px">
+    股市资金流动有个规律：<strong>热门板块</strong>（被疯炒过的）里面全是获利盘 → 大盘一跌, 获利盘蜂拥逃跑 → 反弹时解套盘压顶, 弹不动。
+    <strong>冷门板块</strong>（一直阴跌、没人理的）筹码早被洗干净了 → 大盘一跌跟跌纯粹是恐慌 → 反弹时没有解套压力, 弹得快。
+  </p>
+
+  <h3>ETF候选池 (15只科技+制造)</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px">
+    <span class="tag buy">军工龙头ETF 512710</span>
+    <span class="tag buy">国防ETF 512670</span>
+    <span class="tag buy">通信ETF 515880</span>
+    <span class="tag buy">5GETF 515050</span>
+    <span class="tag buy">人工智能ETF 159819</span>
+    <span class="tag buy">AIETF 515070</span>
+    <span class="tag buy">半导体ETF 512480</span>
+    <span class="tag buy">芯片ETF 159995</span>
+    <span class="tag buy">电池ETF 561910</span>
+    <span class="tag buy">锂电池ETF 159840</span>
+    <span class="tag buy">碳中和ETF 516070</span>
+    <span class="tag buy">碳中和50ETF 159790</span>
+    <span class="tag buy">电力ETF 159611</span>
+    <span class="tag buy">电力ETF 561560</span>
+    <span class="tag buy">云计算ETF 516510</span>
+  </div>
+
+  <h3>参数表</h3>
+  <table>
+    <thead><tr><th>参数</th><th>值</th><th>说明</th></tr></thead>
+    <tr><td>大盘指数</td><td>沪深300</td><td>急跌判定基准</td></tr>
+    <tr><td>急跌阈值</td><td>≤ -0.7%</td><td>单日跌幅触发条件</td></tr>
+    <tr><td>过热度窗口</td><td>10个交易日</td><td>统计区间</td></tr>
+    <tr><td>非过热判定</td><td>10日涨幅后50%</td><td>取最冷的冷门</td></tr>
+    <tr><td>跟跌确认</td><td>≤ -0.3%</td><td>不能大盘跌它不跌</td></tr>
+    <tr><td>趋势过滤</td><td>CSI300 < MA60</td><td>避开牛市回调陷阱</td></tr>
+    <tr><td>持有期</td><td>T+8</td><td>约11个日历日</td></tr>
+    <tr><td>仓位</td><td>等权满仓</td><td>均分资金</td></tr>
+    <tr><td>止损止盈</td><td>无</td><td>纯持有到期</td></tr>
+  </table>
+</div>
+</section>
+
+<div class="footer">
+  ETF-GO Dashboard · Generated 2026-06-01 ·
+  <a href="https://github.com/wateralways/ETF_go" target="_blank">GitHub</a> ·
+  仅供研究, 不构成投资建议
+</div>
+
+</main>
+</body>
+</html>
