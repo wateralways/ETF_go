@@ -1,0 +1,104 @@
+name: Daily Signal Analysis
+
+on:
+  schedule:
+    - cron: '30 7 * * 1-5'   # Mon-Fri 15:30 Beijing time
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pandas numpy efinance akshare
+
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: cache
+          key: etf-cache-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: etf-cache-${{ runner.os }}-
+
+      - name: Run daily analysis
+        run: python daily_analysis.py
+
+      - name: Update dashboard HTML
+        if: always()
+        run: python -c "
+import json, re
+
+with open('signal_result.json', 'r', encoding='utf-8') as f:
+    r = json.load(f)
+with open('signal_status.html', 'r', encoding='utf-8') as f:
+    badge = f.read().strip()
+with open('index.html', 'r', encoding='utf-8') as f:
+    html = f.read()
+
+# Replace status badge
+old_badge = r'<div class=\"status-badge [^\"]*\"[^>]*>[^<]*</div>'
+html = re.sub(old_badge, badge, html, count=1)
+
+# Update date display
+html = re.sub(
+    r'(最后更新</div>\s*<div style=\"font-weight:600\">)[^<]+',
+    rf'\g<1>{r[\"date\"]}',
+    html
+)
+
+# If crash triggered, inject buy list after signal card
+if r['is_crash'] and r['buy_list']:
+    items = ''
+    for etf in r['buy_list']:
+        items += f'<tr><td>{etf[\"code\"]}</td><td>{etf[\"name\"]}</td><td>{etf[\"ret_10d\"]:+.2f}%</td><td>{etf[\"today_pct\"]:+.2f}%</td><td><span class=\"tag buy\">买入</span></td></tr>'
+
+    w = 100 / len(r['buy_list']) if r['buy_list'] else 0
+    flash = f'''<div class=\"signal-flash\" style=\"margin-top:20px\">
+      <h3>🚨 急跌信号触发 — {r[\"date\"]}</h3>
+      <p class=\"detail\">CSI300 {r[\"csi300_pct\"]:+.2f}% | {r[\"trend\"]} | 买入 {r[\"n_buy\"]} 只 ETF (各 {w:.1f}% 仓位)</p>
+      <table style=\"margin-top:12px\"><thead><tr><th>代码</th><th>名称</th><th>10日</th><th>今日</th><th></th></tr></thead>
+      {items}</table>
+    </div>'''
+
+    # insert after signal status card's closing </table>
+    html = html.replace('</table>\n          </div>\n\n          <!-- Quick Rules -->',
+                        f'</table>\n          </div>\n{flash}\n          <!-- Quick Rules -->')
+
+    # ETF ranking after Quick Rules
+    if r['all_etfs']:
+        rows = ''
+        for etf in r['all_etfs']:
+            tag = '<span class=\"tag buy\">买入</span>' if etf['cold'] else ''
+            rows += f'<tr><td>{etf[\"code\"]}</td><td>{etf[\"name\"]}</td><td>{etf[\"ret_10d\"]:+.2f}%</td><td>{etf[\"today_pct\"]:+.2f}%</td><td>{tag}</td></tr>'
+        rank = f'''<div class=\"card\" style=\"margin-top:16px\">
+      <h2>📊 ETF 过热度排名 (急跌日: {r[\"date\"]})</h2>
+      <table>
+        <thead><tr><th>代码</th><th>名称</th><th>10日收益</th><th>今日涨跌</th><th>状态</th></tr></thead>
+        {rows}</table>
+    </div>'''
+        html = html.replace('</ul>\n          </div>\n        </div>\n        </section>',
+                            f'</ul>\n          </div>\n        </div>\n        {rank}\n        </section>')
+
+with open('index.html', 'w', encoding='utf-8') as f:
+    f.write(html)
+print('Dashboard updated')
+"
+
+      - name: Commit and push
+        if: always()
+        run: |
+          git config user.name "ETF-GO Bot"
+          git config user.email "bot@etf-go.local"
+          git add index.html signal_result.json signal_status.html cache/
+          git diff --cached --quiet || git commit -m "auto: daily analysis $(date +%Y-%m-%d)"
+          git push
