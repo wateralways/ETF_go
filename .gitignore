@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.DS_Store
+cache/
+*.png
+trade_details.csv
+回测报告.html
