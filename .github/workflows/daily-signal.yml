@@ -47,6 +47,7 @@ jobs:
         run: |
           git config user.name "ETF-GO Bot"
           git config user.email "bot@etf-go.local"
-          git add index.html signal_result.json signal_status.html cache/
+          git add index.html signal_result.json signal_status.html
+          git add -f cache/
           git diff --cached --quiet || git commit -m "auto: daily analysis $(date +%Y-%m-%d)"
           git push

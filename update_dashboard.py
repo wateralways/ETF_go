@@ -23,7 +23,7 @@ html = re.sub(
 
 # Update date
 html = re.sub(
-    r"(Last update.*?</div>\s*<div style=\"font-weight:600\">)[^<]+",
+    r"(最后更新</div>\s*<div style=\"font-weight:600\">)[^<]+",
     rf"\g<1>{r['date']}",
     html,
 )
