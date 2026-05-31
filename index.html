@@ -145,7 +145,17 @@ tr:hover td { background: rgba(56,189,248,0.03); }
 </div>
 
 <div class="grid-2">
-  <!-- SIGNAL_STATUS_CARD -->
+    <!-- Signal Status -->
+  <div class="card">
+    <h2>Signal Status (auto-updated)</h2>
+    <table>
+      <tr><td style="color:var(--muted)">Latest trading day</td><td><strong>2026-05-29</strong></td></tr>
+      <tr><td style="color:var(--muted)">CSI 300</td><td><span class="down">-0.45%</span></td></tr>
+      <tr><td style="color:var(--muted)">Crash triggered?</td><td><span class="status-badge off">未触发 (距阈值差 0.25%)</span></td></tr>
+      <tr><td style="color:var(--muted)">Market trend</td><td>强势 (CSI300 4892 vs MA60 4711)</td></tr>
+      <tr><td style="color:var(--muted)">Advice</td><td>等待下一个急跌日</td></tr>
+    </table>
+  </div>
 
   <!-- Quick Rules -->
   <div class="card">
